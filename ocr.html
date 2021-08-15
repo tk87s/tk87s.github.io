@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>OCR</title>
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+        <link href="https://fonts.googleapis.com/css?family=Sofia&effect=neon" rel="stylesheet" type="text/css">
+        <link rel="stylesheet"  type="text/css" href="./style.css">
+
+        <script src="index.js" defer></script>
+
+    </head>
+    <body class="p-3 bg-primary">
+        <nav class="navbar navbar-expand-md navbar-dark bg-dark mb-4">
+            <a class="navbar-brand font-effect-neon" href="./index.html">Index</a>
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item"><a class="nav-link" href="#">Home</a></li>
+                <li class="nav-item"><a class="nav-link" href="#">Projects</a></li>
+            </ul>
+        </nav>
+
+        <main class="p-1 mb-2">
+            <article>
+                <div class="form-row mb-2">
+                    <div class="col-auto">
+                        <input type="file" class="form-control-file form-control-sm" id="imgfile">
+                    </div>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" id="select-lang1" name="select-lang" class="custom-control-input">
+                    <label class="custom-control-label" for="select-lang1">ENG</label>
+                </div>
+                <div class="custom-control custom-radio custom-control-inline">
+                    <input type="radio" id="select-lang2" name="select-lang" class="custom-control-input">
+                    <label class="custom-control-label" for="select-lang2">JAN + ENG</label>
+                </div>
+                <div class="d-flex flex-row align-items-start">
+                    <div class="mx-1">
+                        <div class="font-weight-bold">Base image:</div>
+                        <div class="d-flex flex-row">
+                            <button class="btn btn-primary btn-sm mx-1" id="binarize">binarize</button>
+                            <button class="btn btn-primary btn-sm mx-1" id="subtraction">subtraction</button>
+                        </div>
+                        <canvas id="canvas"></canvas>
+                    </div>  
+                    <div class="mx-1">
+                        <div class="font-weight-bold">Result:</div>
+                        <div class="d-flex flex-row">
+                            <button class="btn btn-primary btn-sm mx-1" id="out-copy">copy</button>
+                            <button class="btn btn-primary btn-sm mx-1" id="remove_one_space">remove_one_space</button>
+                            <button class="btn btn-primary btn-sm mx-1" id="remove_multi_space">remove_multi_space</button>
+                            <button class="btn btn-primary btn-sm mx-1" id="replace_LFtoSpace">replace_LF_to_space</button>
+                        </div>
+                        <textarea class="small" id="result" cols="80" rows="50" style="overflow:scroll;"></textarea>
+                    </div>
+                </div>
+                <canvas id="canvas2"></canvas>
+                <canvas id="canvas3"></canvas>
+            </article>
+        </main>
+
+        <footer>
+            <p>©Copyright 2021 by ts. All rights reversed.</p>
+        </footer>
+        <!--<script src='https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/1.0.19/tesseract.min.js'></script>-->
+        <script src='https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/2.1.5/tesseract.min.js'></script>
+        <script>
+            let recog_func = (src, en_flag) => {
+                let text_area = document.getElementById('result');
+                let progress = document.getElementById('progress');
+                Tesseract.recognize(src, en_flag?'eng':'jpn+eng',{ logger: m =>  text_area.value = 'Progress : ' + m.progress} )
+                .then(({ data: { text } }) => {
+                    text_area.value = text;
+                }).catch(err => {
+                    text_area.value = err;
+                });
+            };
+            let radio_lang = document.getElementsByName('select-lang');
+            radio_lang[0].checked = true;
+            let canvas = document.getElementById('canvas');
+            let ctx_src = canvas.getContext('2d');
+            let canvas2 = document.getElementById('canvas2');
+            canvas2.style.display = 'none';
+            let ctx2 = canvas2.getContext('2d');
+            let canvas3 = document.getElementById('canvas3');
+            canvas3.style.display = 'none';
+            let ctx3 = canvas3.getContext('2d');
+            ctx3.scale(4,4);
+            let image_src;
+            let image_dst;
+            let MIN_WIDTH  = 3;
+            let MIN_HEIGHT = 3;
+            let rect_mousedown_flag = false;
+            let rect_lx = 0;
+            let rect_ly = 0;
+            let rect_rx = 0;
+            let rect_ry = 0;
+            document.getElementById('imgfile').addEventListener('change', event => {
+                const file = event.currentTarget.files[0];
+                const reader = new FileReader();
+                reader.onload = function() {
+                    image_src = new Image();
+                    image_src.onload = function() {
+                        canvas.width = this.naturalWidth;
+                        canvas.height = this.naturalHeight; 
+                        ctx_src.drawImage(this, 0, 0);   
+                    }
+                    image_src.src = reader.result;
+                }
+                reader.readAsDataURL(file);
+            });
+            canvas.addEventListener('mousedown', event => {
+                rect_mousedown_flag = true;
+                let rect = event.target.getBoundingClientRect();
+                rect_lx = event.clientX - rect.left;
+                rect_ly = event.clientY - rect.top;
+                rect_rx = rect_lx;
+                rect_ry = rect_ly;
+                ctx_src.lineWidth = 1;
+                ctx_src.strokeStyle = "limegreen";
+            });
+            canvas.addEventListener('mousemove', event => {
+                if(rect_mousedown_flag) {
+                    let rect = event.target.getBoundingClientRect();
+                    rect_rx = event.clientX - rect.left;
+                    rect_ry = event.clientY - rect.top;
+                    ctx_src.drawImage(image_src, 0, 0);
+
+                    ctx_src.beginPath();
+ 
+                    ctx_src.moveTo(rect_lx,rect_ly);
+                    ctx_src.lineTo(rect_rx,rect_ly);
+
+                    ctx_src.moveTo(rect_lx,rect_ry);
+                    ctx_src.lineTo(rect_rx,rect_ry);
+                
+                    ctx_src.moveTo(rect_rx,rect_ly);
+                    ctx_src.lineTo(rect_rx,rect_ry);
+
+                    ctx_src.moveTo(rect_lx,rect_ly);
+                    ctx_src.lineTo(rect_lx,rect_ry);
+                
+                    ctx_src.stroke();
+                }
+            });
+            canvas.addEventListener('mouseup', event => {
+                if(rect_lx === rect_rx && rect_ly === rect_ry){
+                    ctx_src.drawImage(image_src,0,0); 
+                    rect_rx = rect_lx = 0;
+                    rect_ry = rect_ly = 0;   
+                    //rec_canvas.width = rec_canvas.height = 1; 
+                }
+
+                if(rect_mousedown_flag){
+                    
+                    //rec_canvas.width  = Math.abs(rect_sx - rect_ex);
+                    //rec_canvas.height = Math.abs(rect_sy - rect_ey);
+                    let width  = Math.abs(rect_lx - rect_rx);
+                    let height = Math.abs(rect_ly - rect_ry);
+                    
+                    //if(!(rec_canvas.width >= MIN_WIDTH && rec_canvas.height >= MIN_HEIGHT)){
+                    if(width < MIN_WIDTH || height < MIN_HEIGHT){
+                        ctx_src.drawImage(image_src,0,0); 
+                        rect_lx = rect_rx = 0;
+                        rect_ly = rect_ry = 0; 
+                    }
+                    else {
+                        //拡大なしならrecognizeにrectangleで範囲指定可能
+
+                        //拡大
+                        ctx_src.drawImage(image_src,0,0); 
+                        let rect_img_src = ctx_src.getImageData(rect_lx, rect_ly, width, height);
+                        canvas2.width = width;
+                        canvas2.height = height;
+                        ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
+                        ctx2.putImageData(rect_img_src, 0, 0);
+                        canvas3.width = width*4;
+                        canvas3.height = height*4;
+                        ctx3.scale(4,4);
+                        ctx3.drawImage(canvas2, 0, 0);
+                        recog_func(canvas3, radio_lang[0].checked);
+                    }
+                }
+
+                rect_mousedown_flag = false;
+            });
+
+            const copyButton = document.getElementById("out-copy");
+            copyButton.addEventListener("click", event => {
+                let text = document.getElementById("result").value;
+                navigator.clipboard.writeText(text);
+            });
+
+            let otsu_binarize = (canvas) => {
+                const grayscale = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b
+                let ctx = canvas.getContext("2d");
+                let src = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                let dst = ctx.createImageData(canvas.width, canvas.height);
+
+                let hist = Array(256).fill(0);
+                for (let i=0;i<src.data.length;i+=4) {
+                    let g = ~~grayscale(src.data[i], src.data[i+1], src.data[i+2]);
+                    ++hist[g];
+                }
+                let thresh = 0;
+                let mx = 0;
+                for(let i=0;i<256;++i) {
+                    let w1 = 0;
+                    let w2 = 0;
+                    let sum1 = 0;
+                    let sum2 = 0;
+                    let m1 = 0;
+                    let m2 = 0;
+                    for (let j = 0; j <= i; ++j) {
+                        w1 += hist[j];
+                        sum1 += j * hist[j];
+                    }
+                    for (let j = i + 1; j < 256; ++j) {
+                        w2 += hist[j];
+                        sum2 += j * hist[j];
+                    }
+                    if (w1) {
+                        m1 = sum1 / w1;
+                    }
+                    if (w2) {
+                        m2 = sum2 / w2;
+                    }
+                    let tmp = (w1 * w2 * (m1 - m2) * (m1 - m2));
+                    if (tmp > mx) {
+                        mx = tmp;
+                        thresh = i;
+                    }
+                }
+                for (let i = 0; i < dst.data.length; i += 4) {
+                    let g = ~~grayscale(src.data[i], src.data[i + 1], src.data[i + 2])
+                    if (g <= thresh) {
+                        dst.data[i] = dst.data[i + 1] = dst.data[i + 2] = 0
+                    } else {
+                        dst.data[i] = dst.data[i + 1] = dst.data[i + 2] = 255
+                    }
+                    dst.data[i + 3] = 255
+                }
+                ctx.putImageData(dst, 0, 0);
+                image_src.src = canvas.toDataURL();
+            };
+            const binarizeButton = document.getElementById("binarize");
+            binarizeButton.addEventListener("click", event => {
+                otsu_binarize(canvas);
+            });
+
+            let color_subtraction = (canvas) => {
+                let ctx = canvas.getContext("2d");
+                let src = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                let dst = ctx.createImageData(canvas.width, canvas.height);
+                let th = 256 / 4;
+                for (let i = 0; i < dst.data.length; i += 4) {
+                    dst.data[i] = Math.max(0,Math.min(255,((src.data[i] / th) | 0) * th + ((th/2)|0)));
+                    dst.data[i+1] = Math.max(0,Math.min(255,((src.data[i+1] / th) | 0) * th + ((th/2)|0)));
+                    dst.data[i+2] = Math.max(0,Math.min(255,((src.data[i+2] / th) | 0) * th + ((th/2)|0)));
+                    dst.data[i+3] = src.data[i+3];
+                }
+                ctx.putImageData(dst, 0, 0);
+                image_src.src = canvas.toDataURL();
+            };
+            const subtractionButton = document.getElementById("subtraction");
+            subtractionButton.addEventListener("click", event => {
+                color_subtraction(canvas);
+            });
+
+            const onespaceButton = document.getElementById("remove_one_space");
+            onespaceButton.addEventListener("click", event => {
+                let textarea = document.getElementById('result');
+                textarea.value = textarea.value.replace(/[^\S\n\r](\S)/g, '$1');
+            });
+            const multispaceButton = document.getElementById("remove_multi_space");
+            multispaceButton.addEventListener("click", event => {
+                let textarea = document.getElementById('result');
+                textarea.value = textarea.value.replace(/ +/g, ' ');
+            });
+            const replaceLFButton = document.getElementById("replace_LFtoSpace");
+            replaceLFButton.addEventListener("click", event => {
+                let textarea = document.getElementById('result');
+                textarea.value = textarea.value.replace(/\n+/g, ' ');
+            });
+        </script>
+        <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js" integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI" crossorigin="anonymous"></script>
+    </body>
+</html>
